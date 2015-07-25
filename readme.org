@@ -1,0 +1,6 @@
+* TODO
+** generalized booleans
+** control that number of , corresponds to number of ` (on grammar level?)
+** object system
+** erlang code generation
+** node-wide shared state?
