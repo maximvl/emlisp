@@ -5,24 +5,19 @@
 ** Examples
    Few examples of what is implemented now
 
-** TODO
+** todo
 
    1. Macros
    2. let
    3. progn
-   4. self-hosted tests framework
+   4. self-hosted test framework
    5. tests
 
 ** Ideas / Features
-*** generalized booleans
-
-*** control that number of , corresponds to number of ` (on grammar level?)
-
-*** object system
-
-*** erlang code generation
-
-*** DONE node-wide shared state?
-
-*** mutable environments?
+   - generalized booleans
+   - control that number of , corresponds to number of ` (on grammar level?)
+   - object system
+   - erlang code generation
+   - DONE node-wide shared state?
+   - mutable environments?
 
