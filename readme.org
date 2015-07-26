@@ -5,7 +5,6 @@
 ** How to run
    - install erlang
    - =make ; make run=
-   - =emlisp:repl().=
   
 ** Examples
    Few examples of what is already implemented
