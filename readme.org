@@ -15,7 +15,7 @@
        emlisp> 1
        1
        emlisp> "test"
-       test
+       "test"
        emlisp> 'a
        a
      #+END_SRC
