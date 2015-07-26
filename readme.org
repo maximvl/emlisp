@@ -26,7 +26,7 @@
        emlisp> (lists:seq 1 5)
        (1 2 3 4 5)
      #+END_SRC
-   - core forms: =car, cdr, cons, eq, atom, set, error, quote, list, exit=
+   - core forms: =car, cdr, cons, eq, and, or, cond, atom, set, error, quote, list, exit=
      #+BEGIN_SRC lisp
        emlisp> (car '(1 2))
        1
@@ -36,6 +36,12 @@
        (1 . 2)
        emlisp> (eq 1 1)
        t
+       emlisp> (and 5 nil)
+       nil
+       emlisp> (or 5 nil)
+       5
+       emlisp> (cond ((eq 5 1) 'one) ((eq 5 2) 'two) (t 'other))
+       other
        emlisp> (atom '(1 2))
        nil
        emlisp> (set 'x 5)
