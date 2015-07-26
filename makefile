@@ -3,7 +3,7 @@ all: compile peg
 deps:
 	./rebar get-deps
 
-compile deps:
+compile: deps
 	./rebar compile
 
 peg:
