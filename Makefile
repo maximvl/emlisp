@@ -12,3 +12,6 @@ peg:
 
 run:
 	erl -noshell -pa deps/*/ebin -pa ebin -s emlisp -eval "emlisp:repl()."
+
+clean:
+	rm -vrf deps ebin erl_crash.dump
