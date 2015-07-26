@@ -25,6 +25,11 @@
        4
        emlisp> (lists:seq 1 5)
        (1 2 3 4 5)
+       emlisp> erlang:integer_to_list/1
+       erlang:integer_to_list/1
+       emlisp> (lists:map erlang:integer_to_list/1 '(1 2 3))
+       ((49) (50) (51))
+
      #+END_SRC
    - core forms: =car, cdr, cons, eq, and, or, cond, atom, set, error, quote, list, exit=
      #+BEGIN_SRC lisp
@@ -62,7 +67,7 @@
    - lists, quotes, metaquotes, commas
      #+BEGIN_SRC lisp
        emlisp> '(1 2 (erlang:+ 1 2))
-       (1 2 (#<{erlmf,<<"erlang">>,<<"+">>}> 1 2))
+       (1 2 (erlang:+ 1 2))
        emlisp> `(1 2 ,(erlang:+ 1 2))
        (1 2 3)
      #+END_SRC

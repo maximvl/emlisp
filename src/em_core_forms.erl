@@ -109,8 +109,11 @@ eval({space}, Env) ->
 %% eval({quote, Exprs}, Env) ->
 %%   {Exprs, Env};
 
-eval(Data, Env) ->
-  error_(illegal_function_call, Data, Env).
+eval(Data, Env) when is_list(Data) ->
+  error_(illegal_function_call, Data, Env);
+eval(Token, Env) ->
+  error_(bad_token, Token, Env).
+
 
 -spec eval_collect([ast()], env()) -> {[res()], env()}.
 eval_collect(Exprs, Env) ->
