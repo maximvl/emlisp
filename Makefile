@@ -3,7 +3,7 @@ all: compile peg
 deps:
 	./rebar get-deps
 
-compile deps:
+compile: deps
 	./rebar compile
 
 peg:
@@ -11,4 +11,7 @@ peg:
 	./rebar compile skip_deps=true
 
 run:
-	erl -pa deps/*/ebin -pa ebin -s emlisp -eval "emlisp:repl()."
+	erl -noshell -pa deps/*/ebin -pa ebin -s emlisp -eval "emlisp:repl()."
+
+clean:
+	rm -vrf deps ebin erl_crash.dump
