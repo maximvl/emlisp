@@ -2,9 +2,87 @@
   Emlisp is my experiment with language implementation,
   features and such things.
   
+** How to run
+   - install erlang
+   - =make ; make run=
+   - =emlisp:repl().=
+  
 ** Examples
-   Few examples of what is implemented now
+   Few examples of what is already implemented
 
+   - datatypes: integer, string, symbol
+     #+BEGIN_SRC lisp
+       emlisp> 1
+       1
+       emlisp> "test"
+       test
+       emlisp> 'a
+       a
+     #+END_SRC
+   - interface to erlang is =(Mod:Fun arg1 arg2 ...)=
+     #+BEGIN_SRC lisp
+       emlisp> (erlang:+ 2 2)
+       4
+       emlisp> (lists:seq 1 5)
+       (1 2 3 4 5)
+     #+END_SRC
+   - core forms: =car, cdr, cons, eq, atom, set, error, quote, list, exit=
+     #+BEGIN_SRC lisp
+       emlisp> (car '(1 2))
+       1
+       emlisp> (cdr '(1 2))
+       (2)
+       emlisp> (cons 1 2)
+       (1 . 2)
+       emlisp> (eq 1 1)
+       t
+       emlisp> (atom '(1 2))
+       nil
+       emlisp> (set 'x 5)
+       5
+       emlisp> (erlang:+ x x)
+       10
+       emlisp> (error 'some_error x)
+       error some_error: (5)
+       emlisp> a
+       error env_not_found: a
+       emlisp> (quote a)
+       a
+       emlisp> (list 1 2)
+       (1 2)
+       emlisp> (exit)
+       ** exception throw: emlisp_exit
+     #+END_SRC
+   - lists, quotes, metaquotes, commas
+     #+BEGIN_SRC lisp
+       emlisp> '(1 2 (erlang:+ 1 2))
+       (1 2 (#<{erlmf,<<"erlang">>,<<"+">>}> 1 2))
+       emlisp> `(1 2 ,(erlang:+ 1 2))
+       (1 2 3)
+     #+END_SRC
+   - lambdas
+     #+BEGIN_SRC lisp
+       emlisp> (lambda (x) x)
+       #<{lambda,[{symbol,<<"x">>}],
+                 [{symbol,<<"x">>}],
+                 [{dict,0,16,16,8,80,48,
+                        {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
+                        {{[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]}}}]}>
+       emlisp> ((lambda (x) x) 4)
+       4
+       emlisp> (set 'f ((lambda (x) (lambda () x)) 7))
+       #<{lambda,[],
+                 [{symbol,<<"x">>}],
+                 [{dict,1,16,16,8,80,48,
+                        {[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]},
+                        {{[],
+                          [[{symbol,<<"x">>}|7]],
+                          [],[],[],[],[],[],[],[],[],[],[],[],[],[]}}}]}>
+       emlisp> (f)
+       7
+     #+END_SRC
+   - global environment is saved and shared between repls in em_env process
+     
 ** todo
 
    1. Macros
@@ -20,4 +98,5 @@
    - erlang code generation
    - DONE node-wide shared state?
    - mutable environments?
+   - type system
 

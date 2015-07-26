@@ -74,6 +74,17 @@ eval([[{symbol, <<"lambda">>}, Names | Body] | Args], Env) ->
   {EvaledArgs, Env2} = eval_collect(Args, Env),
   exec_func(make_func(Names, Body), EvaledArgs, Env2);
 
+eval({bquote, List}, Env) when is_list(List) ->
+  {Res, Env2} = lists:foldl(fun(Next, {Res, NEnv}) ->
+                                case Next of
+                                  {comma, Expr} ->
+                                    {R, NEnv2} = eval(Expr, Env),
+                                    {[R|Res], NEnv2};
+                                  _ -> {[Next|Res], NEnv}
+                                end
+                            end, {[], Env}, List),
+  {lists:reverse(Res), Env2};
+
 eval([], Env) -> {[], Env};
 eval(I, Env) when is_integer(I) -> {I, Env};
 eval({string, S}, Env) -> {{string, S}, Env};

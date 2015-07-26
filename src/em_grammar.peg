@@ -13,7 +13,7 @@ ccell     <- "," cell;
 
 atom      <- space* (erlmfa / erlmf / boolean_ / integer / string / symbol) space* ;
 erlmfa    <- erlmf "/" integer ;
-erlmf     <- (!":" .)+ ":" (!erl_delimiter .)+ ;
+erlmf     <- (!erl_delimiter .)+ ":" (!erl_delimiter .)+ ;
 boolean_  <- "#t" / "#f" ;
 integer   <- [0-9]+ ;
 string    <- '"' ("\\" . / [^"])* '"' ;
@@ -21,4 +21,4 @@ symbol    <- (!delimiter .)+ ;
 space     <- [ \t\n\s\r] ;
 paren     <- "(" / ")" ;
 delimiter <- paren / space ;
-erl_delimiter <- delimiter / "/" ;
+erl_delimiter <- delimiter / ":" / "/" ;
