@@ -2,14 +2,12 @@
 
 -compile([export_all]).
 
+-include_lib("emlisp/include/emlisp.hrl").
+
 %% AWKLisp is a Lisp interpreter written in awk, available by anonymous
 %% ftp from ftp.cs.cmu.edu:/user/ai/lang/lisp/impl/awk/. It has thirteen
 %% built-in functions: CAR, CDR, CONS, EQ, ATOM, SET, EVAL, ERROR, QUOTE,
 %% COND, AND, OR, LIST.
-
--type ast() :: any().
--type env() :: any().
--type res() :: any().
 
 error_(Tag, Data, _Env) -> throw({emlisp, make_symbol(Tag), Data}).
 
@@ -28,70 +26,69 @@ is_true([]) -> false;
 is_true(_) -> true.
 
 %% Env & Eval
+std_ops() ->
+  [car, cdr, cons, eq, atom, defun, defmacro,
+   set, error, quote, list, exit].
 
--spec null_env() -> env().
-null_env() -> env_add_frame([]).
-
--spec env_add_frame(env()) -> env().
-env_add_frame(Env) -> [dict:new()|Env].
-
--spec env_set(any(), any(), env()) -> env().
-env_set(K, V, [Env|Rest]) -> [dict:store(K, V, Env)|Rest].
-
-env_set_many(KVs, [Env|Rest]) ->
-  Frame2 = lists:foldl(fun({K, V}, Frame) ->
-                           dict:store(K, V, Frame)
-                       end, Env, KVs),
-  [Frame2|Rest].
-
--spec env_get(any(), env()) -> any().
-env_get(K, Envs) -> env_get1(K, Envs, Envs).
-
-env_get1(K, [], Envs) -> error_(env_not_found, K, Envs);
-env_get1(K, [Env|Rest], Envs) ->
-  case dict:find(K, Env) of
-    {ok, Val} -> Val;
-    error -> env_get1(K, Rest, Envs)
-  end.
-
-std_env() ->
-  env_set_many(
+fill_std_env() ->
+  em_env:env_set_many(
     [{make_symbol(<<"nil">>), make_nil()},
      {make_symbol(<<"t">>), make_t()},
      {make_symbol(<<"cond">>), cond_},
      {make_symbol(<<"and">>), and_},
      {make_symbol(<<"or">>), or_}
-     | [{make_symbol(N), N} || N <- [car, cdr, cons, eq,
-                                     atom, set, error, quote, list, exit]]],
-    null_env()).
+     | [{make_symbol(N), N} || N <- std_ops()]],
+    em_env:global_env()).
 
 %% EVAL
 
 -spec eval(ast()) -> {res(), env()}.
-eval(Ast) -> eval(Ast, std_env()).
+eval(Ast) -> eval(Ast, em_env:null_env()).
 
 -spec eval(ast(), env()) -> {res(), env()}.
-eval([{erlsym, Mod, Fun} | Args], Env) ->
+eval([{erlmf, Mod, Fun} | Args], Env) ->
   M = erlang:binary_to_existing_atom(Mod, utf8),
   F = erlang:binary_to_existing_atom(Fun, utf8),
   {EvaledArgs, Env2} = eval_collect(Args, Env),
   {erlang:apply(M, F, EvaledArgs), Env2};
 
+eval([{symbol, <<"lambda">>}, Args | Body], Env) ->
+  L = make_lambda(Args, Body, Env),
+  {L, Env};
+
 eval([{symbol, _}=S | Args], Env) ->
-  SymFunc = env_get(S, Env),
+  SymFunc = em_env:env_get(S, Env),
   case func_type(SymFunc) of
-    function -> exec_func(SymFunc, Args, Env);
+    lambda ->
+      {EvaledArgs, Env2} = eval_collect(Args, Env),
+      {Res, _} = exec_lambda(SymFunc, EvaledArgs),
+      {Res, Env2};
+    function ->
+      {EvaledArgs, Env2} = eval_collect(Args, Env),
+      exec_func(SymFunc, EvaledArgs, Env2);
     macro -> exec_macro(SymFunc, Args, Env);
     builtin -> exec_builtin(SymFunc, Args, Env)
   end;
+
+eval([[{symbol, <<"lambda">>}, Names | Body] | Args], Env) ->
+  {EvaledArgs, Env2} = eval_collect(Args, Env),
+  exec_func(make_func(Names, Body), EvaledArgs, Env2);
 
 eval([], Env) -> {[], Env};
 eval(I, Env) when is_integer(I) -> {I, Env};
 eval({string, S}, Env) -> {{string, S}, Env};
 eval({boolean_, B}, Env) -> {{boolean_, B}, Env};
 eval({symbol, _}=S, Env) ->
-  V = env_get(S, Env),
+  V = em_env:env_get(S, Env),
   {V, Env};
+
+eval({erlmfa, Mod, Fun, Arity}, Env) ->
+  M = erlang:binary_to_existing_atom(Mod, utf8),
+  F = erlang:binary_to_existing_atom(Fun, utf8),
+  {fun M:F/Arity, Env};
+
+eval({space}, Env) ->
+  {make_nil(), Env};
 
 %% eval(Exprs, Env) when is_list(Exprs) ->
 %%   lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
@@ -112,13 +109,16 @@ eval_collect(Exprs, Env) ->
                               end, {Env, []}, Exprs),
   {lists:reverse(Res), NewEnv}.
 
-exec_func(Func, Args, Env) ->
-  {EvaledArgs, Env2} = eval_collect(Args, Env),
+exec_lambda(L, EvaledArgs) ->
+  exec_func(make_func(lambda_args(L), lambda_body(L)),
+            EvaledArgs, lambda_env(L)).
+
+exec_func(Func, EvaledArgs, Env) ->
   ArgNames = func_args(Func),
   case length(EvaledArgs) == length(ArgNames) of
     true ->
-      Env2 = env_add_frame(Env),
-      Env3 = env_set_many(lists:zip(ArgNames, EvaledArgs), Env2),
+      Env2 = em_env:env_add_frame(Env),
+      Env3 = em_env:env_set_many(lists:zip(ArgNames, EvaledArgs), Env2),
       Body = func_body(Func),
       lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
                       eval(NextExpr, AccEnv)
@@ -131,8 +131,8 @@ exec_macro(Macro, Args, Env) ->
   ArgNames = macro_args(Macro),
   case length(Args) == length(ArgNames) of
     true ->
-      Env2 = env_add_frame(Env),
-      Env3 = env_set_many(lists:zip(ArgNames, Args), Env2),
+      Env2 = em_env:env_add_frame(Env),
+      Env3 = em_env:env_set_many(lists:zip(ArgNames, Args), Env2),
       Body = macro_body(Macro),
       lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
                       eval(NextExpr, AccEnv)
@@ -145,6 +145,7 @@ make_func(Args, Exprs) -> {func, Args, Exprs}.
 
 func_type({func, _, _}) -> function;
 func_type({macro, _, _}) -> macro;
+func_type({lambda, _, _, _}) -> lambda;
 func_type(Atom) when is_atom(Atom) -> builtin.
 
 func_body({func, _, Exprs}) -> Exprs.
@@ -154,6 +155,14 @@ make_macro(Args, Exprs) -> {macro, Args, Exprs}.
 
 macro_args({macro, Args, _}) -> Args.
 macro_body({macro, _, Exprs}) -> Exprs.
+
+make_lambda(Args, Body, Env) ->
+  Env2 = em_env:env_merge(Env),
+  {lambda, Args, Body, Env2}.
+
+lambda_args({lambda, Args, _, _}) -> Args.
+lambda_body({lambda, _, Body, _}) -> Body.
+lambda_env({lambda, _, _, Env}) -> Env.
 
 exec_builtin(car, [Arg], Env) ->
   {Evaled, Env2} = eval(Arg, Env),
@@ -214,6 +223,15 @@ exec_builtin(list, Args, Env) ->
   eval_collect(Args, Env);
 exec_builtin(exit, _, _Env) ->
   throw(emlisp_exit);
+exec_builtin(defun, [Name, Args, Body], Env) ->
+  case is_symbol(Name) of
+    true ->
+      L = make_lambda(Args, Body, Env),
+      em_env:env_set_global(Name, L),
+      {Name, Env};
+    false ->
+      error_(cant_defun, Name, Env)
+  end;
 exec_builtin(B, Args, Env) ->
   error_(undefined_builtin, {B, Args}, Env).
 
@@ -235,7 +253,7 @@ exec_or([H|T], Env) ->
   end.
 
 exec_cond([], Env) -> {make_nil(), Env};
-exec_cond([[C|B]|T], Env) ->
+exec_cond([[C, B]|T], Env) ->
   {Evaled, Env2} = eval(C, Env),
   case is_true(Evaled) of
     true -> eval(B, Env2);
@@ -249,7 +267,7 @@ exec_set([K, V|T], Env, _Last) ->
   case is_symbol(EvaledK) of
     true ->
       {EvaledV, Env3} = eval(V, Env2),
-      Env4 = env_set(EvaledK, EvaledV, Env3),
+      Env4 = em_env:env_set(EvaledK, EvaledV, Env3),
       exec_set(T, Env4, EvaledV);
     false -> error_(cant_set, EvaledK, Env2)
   end.

@@ -27,7 +27,7 @@ parse(Input) when is_binary(Input) ->
 
 -spec 'program'(input(), index()) -> parse_result().
 'program'(Input, Index) ->
-  p(Input, Index, 'program', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_one_or_more(fun 'cell'/2), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('program', Node, Idx) end).
+  p(Input, Index, 'program', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_zero_or_more(fun 'cell'/2), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('program', Node, Idx) end).
 
 -spec 'cell'(input(), index()) -> parse_result().
 'cell'(Input, Index) ->
@@ -59,11 +59,15 @@ parse(Input) when is_binary(Input) ->
 
 -spec 'atom'(input(), index()) -> parse_result().
 'atom'(Input, Index) ->
-  p(Input, Index, 'atom', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_choose([fun 'erlsym'/2, fun 'boolean_'/2, fun 'integer'/2, fun 'string'/2, fun 'symbol'/2]), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('atom', Node, Idx) end).
+  p(Input, Index, 'atom', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_choose([fun 'erlmfa'/2, fun 'erlmf'/2, fun 'boolean_'/2, fun 'integer'/2, fun 'string'/2, fun 'symbol'/2]), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('atom', Node, Idx) end).
 
--spec 'erlsym'(input(), index()) -> parse_result().
-'erlsym'(Input, Index) ->
-  p(Input, Index, 'erlsym', fun(I,D) -> (p_seq([p_one_or_more(p_seq([p_not(p_string(<<":">>)), p_anything()])), p_string(<<":">>), p_one_or_more(p_seq([p_not(fun 'delimiter'/2), p_anything()]))]))(I,D) end, fun(Node, Idx) ->transform('erlsym', Node, Idx) end).
+-spec 'erlmfa'(input(), index()) -> parse_result().
+'erlmfa'(Input, Index) ->
+  p(Input, Index, 'erlmfa', fun(I,D) -> (p_seq([fun 'erlmf'/2, p_string(<<"\/">>), fun 'integer'/2]))(I,D) end, fun(Node, Idx) ->transform('erlmfa', Node, Idx) end).
+
+-spec 'erlmf'(input(), index()) -> parse_result().
+'erlmf'(Input, Index) ->
+  p(Input, Index, 'erlmf', fun(I,D) -> (p_seq([p_one_or_more(p_seq([p_not(p_string(<<":">>)), p_anything()])), p_string(<<":">>), p_one_or_more(p_seq([p_not(fun 'erl_delimiter'/2), p_anything()]))]))(I,D) end, fun(Node, Idx) ->transform('erlmf', Node, Idx) end).
 
 -spec 'boolean_'(input(), index()) -> parse_result().
 'boolean_'(Input, Index) ->
@@ -92,6 +96,10 @@ parse(Input) when is_binary(Input) ->
 -spec 'delimiter'(input(), index()) -> parse_result().
 'delimiter'(Input, Index) ->
   p(Input, Index, 'delimiter', fun(I,D) -> (p_choose([fun 'paren'/2, fun 'space'/2]))(I,D) end, fun(Node, Idx) ->transform('delimiter', Node, Idx) end).
+
+-spec 'erl_delimiter'(input(), index()) -> parse_result().
+'erl_delimiter'(Input, Index) ->
+  p(Input, Index, 'erl_delimiter', fun(I,D) -> (p_choose([fun 'delimiter'/2, p_string(<<"\/">>)]))(I,D) end, fun(Node, Idx) ->transform('erl_delimiter', Node, Idx) end).
 
 
 transform(Symbol,Node,Index) -> em_ast:transform(Symbol, Node, Index).

@@ -1,0 +1,5 @@
+:name "emlisp"
+:node-sname "emlisp"
+:lib-dirs '("deps")
+:app-include-dirs '("include" "priv")
+:project-include-dirs '()

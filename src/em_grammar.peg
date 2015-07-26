@@ -1,4 +1,4 @@
-program   <- space* cell+ space*;
+program   <- space* cell* space*;
 cell      <- space* (qcell / bcell / ecell) space* ;
 qcell     <- "'" ecell ;
 bcell     <- "`" (blist / ccell / ecell) ;
@@ -11,8 +11,9 @@ list      <- "(" cell* ")" ;
 blist     <- "(" (ccell / cell)* ")" ;
 ccell     <- "," cell;
 
-atom      <- space* (erlsym / boolean_ / integer / string / symbol) space* ;
-erlsym    <- (!":" .)+ ":" (!delimiter .)+ ;
+atom      <- space* (erlmfa / erlmf / boolean_ / integer / string / symbol) space* ;
+erlmfa    <- erlmf "/" integer ;
+erlmf     <- (!":" .)+ ":" (!erl_delimiter .)+ ;
 boolean_  <- "#t" / "#f" ;
 integer   <- [0-9]+ ;
 string    <- '"' ("\\" . / [^"])* '"' ;
@@ -20,3 +21,4 @@ symbol    <- (!delimiter .)+ ;
 space     <- [ \t\n\s\r] ;
 paren     <- "(" / ")" ;
 delimiter <- paren / space ;
+erl_delimiter <- delimiter / "/" ;

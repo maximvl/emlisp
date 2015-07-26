@@ -5,6 +5,8 @@
 %% from the parser into semantic output.
 transform(program, [_, [Node], _], _Index) ->
   Node;
+transform(program, [_, [], _], _Index) ->
+  {space};
 
 %% CELLS
 transform(cell, [_, Node, _], _Index) ->
@@ -37,10 +39,15 @@ transform(symbol, Node, _Index) ->
   end;
 transform(string, [<<"\"">>, Node, <<"\"">>], _Index) ->
   {string, iolist_to_binary(Node)};
-transform(erlsym, [Mod, <<":">>, Fun], _Index) ->
+transform(erlmf, [Mod, <<":">>, Fun], _Index) ->
   ErlMod = erlang:iolist_to_binary(Mod),
   ErlFun = erlang:iolist_to_binary(Fun),
-  {erlsym, ErlMod, ErlFun};
+  {erlmf, ErlMod, ErlFun};
+transform(erlmfa, [{erlmf, Mod, Fun}, <<"/">>, Arity], _Index) ->
+  ErlMod = erlang:iolist_to_binary(Mod),
+  ErlFun = erlang:iolist_to_binary(Fun),
+  {erlmfa, ErlMod, ErlFun, Arity};
+
 transform(space, _, _Index) ->
   {space};
 transform(atom, [_, Node, _], _Index) ->

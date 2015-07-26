@@ -11,4 +11,4 @@ peg:
 	./rebar compile skip_deps=true
 
 run:
-	erl -pa deps/*/ebin -pa ebin -eval "emlisp:repl()."
+	erl -pa deps/*/ebin -pa ebin -s emlisp -eval "emlisp:repl()."
