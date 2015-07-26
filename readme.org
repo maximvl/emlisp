@@ -1,6 +1,28 @@
-* TODO
-** generalized booleans
-** control that number of , corresponds to number of ` (on grammar level?)
-** object system
-** erlang code generation
-** node-wide shared state?
+* Emlisp
+  Emlisp is my experiment with language implementation,
+  features and such things.
+  
+** Examples
+   Few examples of what is implemented now
+
+** TODO
+
+   1. Macros
+   2. let
+   3. progn
+   4. self-hosted tests framework
+   5. tests
+
+** Ideas / Features
+*** generalized booleans
+
+*** control that number of , corresponds to number of ` (on grammar level?)
+
+*** object system
+
+*** erlang code generation
+
+*** DONE node-wide shared state?
+
+*** mutable environments?
+
