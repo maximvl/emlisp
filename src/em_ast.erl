@@ -3,28 +3,17 @@
 
 %% Add clauses to this function to transform syntax nodes
 %% from the parser into semantic output.
-transform(program, [_, [Node], _], _Index) ->
+transform(program, [_, Node, _], _Index) ->
   Node;
-transform(program, [_, [], _], _Index) ->
-  {space};
 
 %% CELLS
+transform(cell, [_, [<<"'">>, Cell], _], _Index) ->
+  [{symbol, <<"quote">>}, Cell];
 transform(cell, [_, Node, _], _Index) ->
   Node;
-transform(ecell, Node, _Index) ->
-  Node;
-transform(qcell, [<<"'">>, Node], _Index) ->
-  [{symbol, <<"quote">>}, Node];
-transform(bcell, [<<"`">>, Node], _Index) ->
-  {bquote, Node};
-transform(ccell, [<<",">>, Node], _Index) ->
-  {comma, Node};
 
 %% LISTS
-transform(list, [<<"(">>, Cells, <<")">>], _Index) ->
-  Cells;
-transform(blist, [<<"(">>, Cells, <<")">>], _Index) ->
-  Cells;
+transform(list, [<<"(">>, Cells, <<")">>], _Index) -> Cells;
 
 %% DATA
 transform(integer, Node, _Index) ->

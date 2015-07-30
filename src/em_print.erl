@@ -10,6 +10,10 @@ format_object(O, Env) ->
   F = format_object1(O, Env),
   iolist_to_binary(F).
 
+format_object1([{symbol, <<"quote">>}, F], Env) ->
+  ["'", format_object1(F, Env)];
+format_object1([{symbol, <<"backquote">>}, F], Env) ->
+  ["`", format_object1(F, Env)];
 format_object1([H|T], Env) when is_list(T) ->
   Fh = format_object1(H, Env),
   ["(", Fh, [[" ", format_object1(O, Env)] || O <- T], ")"];

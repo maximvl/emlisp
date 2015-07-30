@@ -27,8 +27,8 @@ is_true(_) -> true.
 
 %% Env & Eval
 std_ops() ->
-  [car, cdr, cons, eq, atom, defun, defmacro,
-   set, error, quote, list, exit].
+  [eval, car, cdr, cons, eq, atom, defmacro,
+   set, error, quote, list, exit, 'macroexpand-1'].
 
 fill_std_env() ->
   em_env:env_set_many(
@@ -74,16 +74,9 @@ eval([[{symbol, <<"lambda">>}, Names | Body] | Args], Env) ->
   {EvaledArgs, Env2} = eval_collect(Args, Env),
   exec_func(make_func(Names, Body), EvaledArgs, Env2);
 
-eval({bquote, List}, Env) when is_list(List) ->
-  {Res, Env2} = lists:foldl(fun(Next, {Res, NEnv}) ->
-                                case Next of
-                                  {comma, Expr} ->
-                                    {R, NEnv2} = eval(Expr, Env),
-                                    {[R|Res], NEnv2};
-                                  _ -> {[Next|Res], NEnv}
-                                end
-                            end, {[], Env}, List),
-  {lists:reverse(Res), Env2};
+eval([{lambda, Args, Body} | Args], Env) ->
+  {EvaledArgs, Env2} = eval_collect(Args, Env),
+  exec_func(make_func(Args, Body), EvaledArgs, Env2);
 
 eval([], Env) -> {[], Env};
 eval(I, Env) when is_integer(I) -> {I, Env};
@@ -141,34 +134,43 @@ exec_func(Func, EvaledArgs, Env) ->
       error_(fun_arity_error, {Func, ArgNames, EvaledArgs}, Env)
   end.
 
-exec_macro(Macro, Args, Env) ->
+expand_macro(Macro, Args) ->
   ArgNames = macro_args(Macro),
+  Env = macro_env(Macro),
   case length(Args) == length(ArgNames) of
     true ->
       Env2 = em_env:env_add_frame(Env),
       Env3 = em_env:env_set_many(lists:zip(ArgNames, Args), Env2),
       Body = macro_body(Macro),
-      lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
-                      eval(NextExpr, AccEnv)
-                  end, {{}, Env3}, Body);
+      {Res, _} = lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
+                                 eval(NextExpr, AccEnv)
+                             end, {{}, Env3}, Body),
+      Res;
     false ->
       error_(macro_arity_error, {Macro, ArgNames, Args}, Env)
   end.
 
+exec_macro(Macro, Args, Env) ->
+  Expand = expand_macro(Macro, Args),
+  eval(Expand, Env).
+
 make_func(Args, Exprs) -> {func, Args, Exprs}.
 
 func_type({func, _, _}) -> function;
-func_type({macro, _, _}) -> macro;
+func_type({macro, _, _, _}) -> macro;
 func_type({lambda, _, _, _}) -> lambda;
 func_type(Atom) when is_atom(Atom) -> builtin.
 
 func_body({func, _, Exprs}) -> Exprs.
 func_args({func, Args, _}) -> Args.
 
-make_macro(Args, Exprs) -> {macro, Args, Exprs}.
+make_macro(Args, Exprs, Env) ->
+  Env2 = em_env:env_merge(Env),
+  {macro, Args, Exprs, Env2}.
 
-macro_args({macro, Args, _}) -> Args.
-macro_body({macro, _, Exprs}) -> Exprs.
+macro_args({macro, Args, _, _}) -> Args.
+macro_body({macro, _, Exprs, _}) -> Exprs.
+macro_env({macro, _, _, Env}) -> Env.
 
 make_lambda(Args, Body, Env) ->
   Env2 = em_env:env_merge(Env),
@@ -178,6 +180,8 @@ lambda_args({lambda, Args, _, _}) -> Args.
 lambda_body({lambda, _, Body, _}) -> Body.
 lambda_env({lambda, _, _, Env}) -> Env.
 
+exec_builtin(eval, [Arg], Env) ->
+  eval(Arg, Env);
 exec_builtin(car, [Arg], Env) ->
   {Evaled, Env2} = eval(Arg, Env),
   case Evaled of
@@ -237,15 +241,19 @@ exec_builtin(list, Args, Env) ->
   eval_collect(Args, Env);
 exec_builtin(exit, _, _Env) ->
   throw(emlisp_exit);
-exec_builtin(defun, [Name, Args, Body], Env) ->
+exec_builtin(defmacro, [Name, Args, Body], Env) ->
   case is_symbol(Name) of
     true ->
-      L = make_lambda(Args, Body, Env),
+      L = make_macro(Args, [Body], Env),
       em_env:env_set_global(Name, L),
       {Name, Env};
     false ->
-      error_(cant_defun, Name, Env)
+      error_(cant_defmacro, Name, Env)
   end;
+exec_builtin('macroexpand-1', [[_Quote, [MacroName | Args]]], Env) ->
+  Macro = em_env:env_get(MacroName, Env),
+  Evaled = expand_macro(Macro, Args),
+  {Evaled, Env};
 exec_builtin(B, Args, Env) ->
   error_(undefined_builtin, {B, Args}, Env).
 

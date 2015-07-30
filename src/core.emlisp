@@ -1,0 +1,7 @@
+(defmacro defun (name args body)
+  (list 'set
+        (list 'quote name)
+        (list 'lambda args body)))
+
+(defun append (list1 list2)
+  (lists:append list1 list2))

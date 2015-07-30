@@ -5,6 +5,7 @@
 -define(p_choose,true).
 -define(p_not,true).
 -define(p_one_or_more,true).
+-define(p_optional,true).
 -define(p_scan,true).
 -define(p_seq,true).
 -define(p_string,true).
@@ -27,35 +28,15 @@ parse(Input) when is_binary(Input) ->
 
 -spec 'program'(input(), index()) -> parse_result().
 'program'(Input, Index) ->
-  p(Input, Index, 'program', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_zero_or_more(fun 'cell'/2), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('program', Node, Idx) end).
+  p(Input, Index, 'program', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_optional(fun 'cell'/2), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('program', Node, Idx) end).
 
 -spec 'cell'(input(), index()) -> parse_result().
 'cell'(Input, Index) ->
-  p(Input, Index, 'cell', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_choose([fun 'qcell'/2, fun 'bcell'/2, fun 'ecell'/2]), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('cell', Node, Idx) end).
-
--spec 'qcell'(input(), index()) -> parse_result().
-'qcell'(Input, Index) ->
-  p(Input, Index, 'qcell', fun(I,D) -> (p_seq([p_string(<<"\'">>), fun 'ecell'/2]))(I,D) end, fun(Node, Idx) ->transform('qcell', Node, Idx) end).
-
--spec 'bcell'(input(), index()) -> parse_result().
-'bcell'(Input, Index) ->
-  p(Input, Index, 'bcell', fun(I,D) -> (p_seq([p_string(<<"`">>), p_choose([fun 'blist'/2, fun 'ccell'/2, fun 'ecell'/2])]))(I,D) end, fun(Node, Idx) ->transform('bcell', Node, Idx) end).
-
--spec 'ecell'(input(), index()) -> parse_result().
-'ecell'(Input, Index) ->
-  p(Input, Index, 'ecell', fun(I,D) -> (p_choose([fun 'list'/2, fun 'atom'/2]))(I,D) end, fun(Node, Idx) ->transform('ecell', Node, Idx) end).
+  p(Input, Index, 'cell', fun(I,D) -> (p_seq([p_zero_or_more(fun 'space'/2), p_choose([p_seq([p_string(<<"\'">>), fun 'cell'/2]), fun 'list'/2, fun 'atom'/2]), p_zero_or_more(fun 'space'/2)]))(I,D) end, fun(Node, Idx) ->transform('cell', Node, Idx) end).
 
 -spec 'list'(input(), index()) -> parse_result().
 'list'(Input, Index) ->
   p(Input, Index, 'list', fun(I,D) -> (p_seq([p_string(<<"(">>), p_zero_or_more(fun 'cell'/2), p_string(<<")">>)]))(I,D) end, fun(Node, Idx) ->transform('list', Node, Idx) end).
-
--spec 'blist'(input(), index()) -> parse_result().
-'blist'(Input, Index) ->
-  p(Input, Index, 'blist', fun(I,D) -> (p_seq([p_string(<<"(">>), p_zero_or_more(p_choose([fun 'ccell'/2, fun 'cell'/2])), p_string(<<")">>)]))(I,D) end, fun(Node, Idx) ->transform('blist', Node, Idx) end).
-
--spec 'ccell'(input(), index()) -> parse_result().
-'ccell'(Input, Index) ->
-  p(Input, Index, 'ccell', fun(I,D) -> (p_seq([p_string(<<",">>), fun 'cell'/2]))(I,D) end, fun(Node, Idx) ->transform('ccell', Node, Idx) end).
 
 -spec 'atom'(input(), index()) -> parse_result().
 'atom'(Input, Index) ->

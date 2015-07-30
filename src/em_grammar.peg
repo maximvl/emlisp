@@ -1,15 +1,18 @@
-program   <- space* cell* space*;
-cell      <- space* (qcell / bcell / ecell) space* ;
-qcell     <- "'" ecell ;
-bcell     <- "`" (blist / ccell / ecell) ;
-ecell     <- list / atom ;
+program   <- space* cell? space* ;
 
-%% cell      <- space* (qlist / blist / list / atom) space* ;
-%% qcell     <- "'" cell ;
+cell      <- space* ("'" cell / list / atom) space* ;
+%% tagged_cell <- cell_tag cell ;
+%% cell_tag  <- "'" / "`" / ",@" / "," ;
 
 list      <- "(" cell* ")" ;
-blist     <- "(" (ccell / cell)* ")" ;
-ccell     <- "," cell;
+
+%% cell      <- space* (qcell / bcell / ecell) space* ;
+%% qcell     <- "'" ecell ;
+%% bcell     <- "`" (ccell / ecell / list) ;
+%% ecell     <- list / ccell / atom ;
+
+%% list      <- "(" (ccell / cell)* ")" ;
+%% ccell     <- "," cell;
 
 atom      <- space* (erlmfa / erlmf / boolean_ / integer / string / symbol) space* ;
 erlmfa    <- erlmf "/" integer ;
