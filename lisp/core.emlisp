@@ -5,3 +5,8 @@
 
 (defun append (list1 list2)
   (lists:append list1 list2))
+
+(defun concat (str1 str2)
+  (emlisp_std:concat str1 str2))
+
+(defun set ())

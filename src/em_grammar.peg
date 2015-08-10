@@ -14,10 +14,9 @@ list      <- "(" cell* ")" ;
 %% list      <- "(" (ccell / cell)* ")" ;
 %% ccell     <- "," cell;
 
-atom      <- space* (erlmfa / erlmf / boolean_ / integer / string / symbol) space* ;
+atom      <- space* (erlmfa / erlmf / integer / string / symbol) space* ;
 erlmfa    <- erlmf "/" integer ;
 erlmf     <- (!erl_delimiter .)+ ":" (!erl_delimiter .)+ ;
-boolean_  <- "#t" / "#f" ;
 integer   <- [0-9]+ ;
 string    <- '"' ("\\" . / [^"])* '"' ;
 symbol    <- (!delimiter .)+ ;

@@ -26,26 +26,30 @@ is_true([]) -> false;
 is_true(_) -> true.
 
 %% Env & Eval
-std_ops() ->
-  [eval, car, cdr, cons, eq, atom, defmacro,
-   set, error, quote, list, exit, 'macroexpand-1'].
+std_symbols() ->
+  [{<<"eval">>, eval}, {<<"car">>, car}, {<<"cdr">>, cdr},
+   {<<"cons">>, cons}, {<<"eq">>, eq}, {<<"atom">>, atom},
+   {<<"defmacro">>, defmacro}, {<<"progn">>, progn}, {<<"set">>, set},
+   {<<"error">>, error}, {<<"quote">>, quote}, {<<"list">>, list},
+   {<<"exit">>, exit}, {<<"macroexpand-1">>, 'macroexpand-1'},
+   {<<"nil">>, nil}, {<<"t">>, t},
+   {<<"cond">>, cond_}, {<<"and">>, and_}, {<<"or">>, or_},
+   {<<"let">>, let_}, {<<"let*">>, let_star}].
 
 fill_std_env() ->
-  em_env:env_set_many(
-    [{make_symbol(<<"nil">>), make_nil()},
-     {make_symbol(<<"t">>), make_t()},
-     {make_symbol(<<"cond">>), cond_},
-     {make_symbol(<<"and">>), and_},
-     {make_symbol(<<"or">>), or_}
-     | [{make_symbol(N), N} || N <- std_ops()]],
+  em_env:env_add_many(
+    [{make_symbol(N), Op} || {N, Op} <- std_symbols()],
     em_env:global_env()).
+
+is_std_symbol({symbol, S}) ->
+  lists:keyfind(S, 1, std_symbols()) /= false.
 
 %% EVAL
 
--spec eval(ast()) -> {res(), env()}.
-eval(Ast) -> eval(Ast, em_env:null_env()).
+-spec eval(ast()) -> {res(), em_env:env()}.
+eval(Ast) -> eval(Ast, em_env:global_env()).
 
--spec eval(ast(), env()) -> {res(), env()}.
+-spec eval(ast(), em_env:env()) -> {res(), em_env:env()}.
 eval([{erlmf, Mod, Fun} | Args], Env) ->
   M = erlang:binary_to_existing_atom(Mod, utf8),
   F = erlang:binary_to_existing_atom(Fun, utf8),
@@ -107,8 +111,7 @@ eval(Data, Env) when is_list(Data) ->
 eval(Token, Env) ->
   error_(bad_token, Token, Env).
 
-
--spec eval_collect([ast()], env()) -> {[res()], env()}.
+-spec eval_collect([ast()], em_env:env()) -> {[res()], em_env:env()}.
 eval_collect(Exprs, Env) ->
   {NewEnv, Res} = lists:foldl(fun(NextExpr, {NextEnv, Acc}) ->
                                   {Res, Env2} = eval(NextExpr, NextEnv),
@@ -125,11 +128,12 @@ exec_func(Func, EvaledArgs, Env) ->
   case length(EvaledArgs) == length(ArgNames) of
     true ->
       Env2 = em_env:env_add_frame(Env),
-      Env3 = em_env:env_set_many(lists:zip(ArgNames, EvaledArgs), Env2),
+      Env3 = em_env:env_add_many(lists:zip(ArgNames, EvaledArgs), Env2),
       Body = func_body(Func),
-      lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
-                      eval(NextExpr, AccEnv)
-                  end, {{}, Env3}, Body);
+      {Res, _} = lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
+                                 eval(NextExpr, AccEnv)
+                             end, {{}, Env3}, Body),
+      {Res, Env};
     false ->
       error_(fun_arity_error, {Func, ArgNames, EvaledArgs}, Env)
   end.
@@ -140,7 +144,7 @@ expand_macro(Macro, Args) ->
   case length(Args) == length(ArgNames) of
     true ->
       Env2 = em_env:env_add_frame(Env),
-      Env3 = em_env:env_set_many(lists:zip(ArgNames, Args), Env2),
+      Env3 = em_env:env_add_many(lists:zip(ArgNames, Args), Env2),
       Body = macro_body(Macro),
       {Res, _} = lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
                                  eval(NextExpr, AccEnv)
@@ -164,17 +168,13 @@ func_type(Atom) when is_atom(Atom) -> builtin.
 func_body({func, _, Exprs}) -> Exprs.
 func_args({func, Args, _}) -> Args.
 
-make_macro(Args, Exprs, Env) ->
-  Env2 = em_env:env_merge(Env),
-  {macro, Args, Exprs, Env2}.
+make_macro(Args, Exprs, Env) -> {macro, Args, Exprs, Env}.
 
 macro_args({macro, Args, _, _}) -> Args.
 macro_body({macro, _, Exprs, _}) -> Exprs.
 macro_env({macro, _, _, Env}) -> Env.
 
-make_lambda(Args, Body, Env) ->
-  Env2 = em_env:env_merge(Env),
-  {lambda, Args, Body, Env2}.
+make_lambda(Args, Body, Env) -> {lambda, Args, Body, Env}.
 
 lambda_args({lambda, Args, _, _}) -> Args.
 lambda_body({lambda, _, Body, _}) -> Body.
@@ -239,13 +239,19 @@ exec_builtin(or_, Args, Env) ->
   exec_or(Args, Env);
 exec_builtin(list, Args, Env) ->
   eval_collect(Args, Env);
+exec_builtin(let_, [Binds|Forms], Env) ->
+  exec_let(Binds, Forms, Env);
+exec_builtin(let_star, [Binds|Forms], Env) ->
+  exec_let_star(Binds, Forms, Env);
 exec_builtin(exit, _, _Env) ->
   throw(emlisp_exit);
+exec_builtin(progn, Forms, Env) ->
+  exec_progn(Forms, Env);
 exec_builtin(defmacro, [Name, Args, Body], Env) ->
   case is_symbol(Name) of
     true ->
       L = make_macro(Args, [Body], Env),
-      em_env:env_set_global(Name, L),
+      em_env:env_set(em_env:global_env(), Name, L),
       {Name, Env};
     false ->
       error_(cant_defmacro, Name, Env)
@@ -288,8 +294,51 @@ exec_set([K, V|T], Env, _Last) ->
   {EvaledK, Env2} = eval(K, Env),
   case is_symbol(EvaledK) of
     true ->
-      {EvaledV, Env3} = eval(V, Env2),
-      Env4 = em_env:env_set(EvaledK, EvaledV, Env3),
-      exec_set(T, Env4, EvaledV);
+      case is_std_symbol(EvaledK) of
+        true -> error_(cant_redefine, EvaledK, Env2);
+        false ->
+          {EvaledV, Env3} = eval(V, Env2),
+          Env4 = em_env:env_set(EvaledK, EvaledV, Env3),
+          exec_set(T, Env4, EvaledV)
+        end;
     false -> error_(cant_set, EvaledK, Env2)
+  end.
+
+exec_let(Binds, Forms, Env) ->
+  Env2 = em_env:env_add_frame(Env),
+  {Env3, EEnv} = lists:foldl(
+                   fun([Var, Form], {NEnv, EEnv}) ->
+                       {Evaled, EEnv2} = eval(Form, EEnv),
+                       NEnv2 = em_env:env_set(Var, Evaled, NEnv),
+                       {NEnv2, EEnv2};
+                    (Var, {NEnv, EEnv}) ->
+                       NEnv2 = em_env:env_set(Var, make_nil(), NEnv),
+                       {NEnv2, EEnv}
+                   end, {Env2, Env}, Binds),
+  {Res, _} = exec_progn(Forms, Env3),
+  {Res, EEnv}.
+
+exec_let_star(Binds, Forms, Env) ->
+  Env2 = em_env:env_add_frame(Env),
+  Env3 = lists:foldl(fun([Var, Form], NEnv) ->
+                         {Evaled, NEnv2} = eval(Form, NEnv),
+                         em_env:env_set(Var, Evaled, NEnv2);
+                      (Var, NEnv) ->
+                         em_env:env_set(Var, make_nil(), NEnv)
+                     end, Env2, Binds),
+  {Res, _} = exec_progn(Forms, Env3),
+  {Res, Env}.
+
+exec_progn(Forms, Env) ->
+  lists:foldl(fun(NextExpr, {_Res, AccEnv}) ->
+                  eval(NextExpr, AccEnv)
+              end, {{}, Env}, Forms).
+
+exec_store_set([Space, Key, Val], _Env) ->
+  em_store:set_value(Space, Key, Val).
+
+exec_store_get([Space, Key], _Env) ->
+  case em_store:get_value(Space, Key) of
+    {ok, S} -> S;
+    {error, not_found} -> error_(not_found, Space, Key)
   end.

@@ -1,3 +1,2 @@
 -type ast() :: any().
--type env() :: any().
 -type res() :: any().
