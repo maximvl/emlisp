@@ -9,4 +9,4 @@
 (defun concat (str1 str2)
   (emlisp_std:concat str1 str2))
 
-(defun set ())
+;; (defun set ())

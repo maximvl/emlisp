@@ -30,7 +30,7 @@
        ((49) (50) (51))
 
      #+END_SRC
-   - core forms: =car, cdr, cons, eq, and, or, cond, atom, set, error, quote, list, exit=
+   - core forms: =car, cdr, cons, eq, and, or, cond, atom, set, error, quote, list, exit, funcall=
      #+BEGIN_SRC lisp
        emlisp> (car '(1 2))
        1
@@ -60,15 +60,17 @@
        a
        emlisp> (list 1 2)
        (1 2)
+       emlisp> (set 'f (list (lambda (x) (car x))))
+       (#<{lambda,[{symbol,<<"x">>}],[[{symbol,<<"car">>},{symbol,<<"x">>}]],global}>)
+       emlisp> (funcall (car f) '(a b c))
+       a
        emlisp> (exit)
-       ** exception throw: emlisp_exit
+       ,** exception throw: emlisp_exit
      #+END_SRC
-   - lists, quotes, metaquotes, commas
+   - lists, quotes
      #+BEGIN_SRC lisp
        emlisp> '(1 2 (erlang:+ 1 2))
        (1 2 (erlang:+ 1 2))
-       emlisp> `(1 2 ,(erlang:+ 1 2))
-       (1 2 3)
      #+END_SRC
    - lambdas
      #+BEGIN_SRC lisp
@@ -92,7 +94,29 @@
        7
      #+END_SRC
    - global environment is saved and shared between repls in em_env process
+   - mutable enclosing environments:
+     #+BEGIN_SRC lisp
+       emlisp> (set 'm (let ((x 5)) (cons (lambda () x) (lambda (y) (set 'x y)))))
+       (#<{lambda,[],[{symbol,<<"x">>}],1439404445176175}> . #<{lambda,[{symbol,<<"y">>}],
+                 [[{symbol,<<"set">>},
+                   [{symbol,<<"quote">>},{symbol,<<"x">>}],
+                   {symbol,<<"y">>}]],
+                 1439404445176175}>)
+       emlisp> (funcall (car m))
+       5
+       emlisp> (funcall (cdr m) "five")
+       "five"
+       emlisp> (funcall (car m))
+       "five"
+
+     #+END_SRC
      
+** Redesign
+*** DONE Rewrite core_forms according to new mutable envs
+*** TODO Add functions/lambdas environment enclosing with respect
+    to both definition and call environments
+*** TODO Add possibility to 'set std symbols in local environments
+    
 ** todo
 
    1. Macros
