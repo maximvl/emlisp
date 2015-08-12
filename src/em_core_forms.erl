@@ -70,24 +70,13 @@ eval([{symbol, <<"lambda">>}, Args | Body], Env) ->
 
 eval([{symbol, _}=S | Args], Env) ->
   SymFunc = em_env:env_get(S, Env),
-  case func_type(SymFunc) of
-    lambda ->
-      EvaledArgs = eval_collect(Args, Env),
-      exec_lambda(SymFunc, EvaledArgs);
-    function ->
-      EvaledArgs = eval_collect(Args, Env),
-      exec_func(SymFunc, EvaledArgs, Env);
-    macro -> exec_macro(SymFunc, Args, Env);
-    builtin -> exec_builtin(SymFunc, Args, Env)
-  end;
+  eval_callable(SymFunc, Args, Env);
 
 eval([[{symbol, <<"lambda">>}, Names | Body] | Args], Env) ->
-  {EvaledArgs, Env2} = eval_collect(Args, Env),
-  exec_func(make_func(Names, Body), EvaledArgs, Env2);
+  exec_lambda(make_lambda(Names, Body, Env), Args, Env);
 
 eval([{lambda, Args, Body} | Args], Env) ->
-  {EvaledArgs, Env2} = eval_collect(Args, Env),
-  exec_func(make_func(Args, Body), EvaledArgs, Env2);
+  exec_lambda(make_lambda(Args, Body, Env), Args, Env);
 
 eval([], _Env) -> [];
 eval(I, _Env) when is_integer(I) -> I;
@@ -120,23 +109,49 @@ eval_sequence([E|Rest], Env) ->
 -spec eval_collect([ast()], em_env:env()) -> {[res()], em_env:env()}.
 eval_collect(Exprs, Env) -> [eval(E, Env) || E <- Exprs].
 
-exec_lambda(L, EvaledArgs) ->
-  exec_func(make_func(lambda_args(L), lambda_body(L)),
-            EvaledArgs, lambda_env(L)).
-
-exec_func(Func, EvaledArgs, Env) ->
-  ArgNames = func_args(Func),
-  case length(EvaledArgs) == length(ArgNames) of
-    true ->
-      Env2 = em_env:env_add_frame(Env),
-      em_env:env_add_many(lists:zip(ArgNames, EvaledArgs), Env2),
-      Body = func_body(Func),
-      Res = eval_sequence(Body, Env2),
-      em_env:env_free_frame(Env2),
-      Res;
-    false ->
-      error_(fun_arity_error, {Func, ArgNames, EvaledArgs}, Env)
+eval_callable(C, Args, Env) ->
+  case func_type(C) of
+    lambda -> exec_lambda(C, Args, Env);
+    function -> exec_named_func(C, Args, Env);
+    macro -> exec_macro(C, Args, Env);
+    builtin -> exec_builtin(C, Args, Env)
   end.
+
+exec_lambda(L, Args, Env) ->
+  ArgNames = lambda_args(L),
+  case length(ArgNames) == length(Args) of
+    true -> exec_func(ArgNames, Args, lambda_body(L), Env);
+    false -> error_(lambda_arity_error, {ArgNames, Args}, Env)
+  end.
+
+exec_named_func(Func, Args, Env) ->
+  ArgNames = func_args(Func),
+  case length(ArgNames) == length(Args) of
+    true -> exec_func(ArgNames, Args, func_body(Func), Env);
+    false -> error_(fun_arity_error, {func_name(Func), ArgNames, Args}, Env)
+  end.
+
+exec_func(ArgNames, ArgForms, Body, Env) ->
+  EvaledArgs = eval_collect(ArgForms, Env),
+  Env2 = em_env:env_add_frame(Env),
+  em_env:env_add_many(lists:zip(ArgNames, EvaledArgs), Env2),
+  Res = eval_sequence(Body, Env2),
+  em_env:env_free_frame(Env2),
+  Res.
+
+%% exec_func(Func, EvaledArgs, Env) ->
+%%   ArgNames = func_args(Func),
+%%   case length(EvaledArgs) == length(ArgNames) of
+%%     true ->
+%%       Env2 = em_env:env_add_frame(Env),
+%%       em_env:env_add_many(lists:zip(ArgNames, EvaledArgs), Env2),
+%%       Body = func_body(Func),
+%%       Res = eval_sequence(Body, Env2),
+%%       em_env:env_free_frame(Env2),
+%%       Res;
+%%     false ->
+%%       error_(fun_arity_error, {Func, ArgNames, EvaledArgs}, Env)
+%%   end.
 
 expand_macro(Macro, Args) ->
   ArgNames = macro_args(Macro),
@@ -157,15 +172,16 @@ exec_macro(Macro, Args, Env) ->
   Expand = expand_macro(Macro, Args),
   eval(Expand, Env).
 
-make_func(Args, Exprs) -> {func, Args, Exprs}.
+make_func(Name, Args, Exprs) -> {func, Name, Args, Exprs}.
 
-func_type({func, _, _}) -> function;
+func_type({func, _, _, _}) -> function;
 func_type({macro, _, _, _}) -> macro;
 func_type({lambda, _, _, _}) -> lambda;
 func_type(Atom) when is_atom(Atom) -> builtin.
 
-func_body({func, _, Exprs}) -> Exprs.
-func_args({func, Args, _}) -> Args.
+func_name({func, Name, _, _}) -> Name.
+func_body({func, _, _, Body}) -> Body.
+func_args({func, _, Args, _}) -> Args.
 
 make_macro(Args, Exprs, Env) -> {macro, Args, Exprs, Env}.
 
@@ -238,8 +254,7 @@ exec_builtin(exit, _, _Env) -> throw(emlisp_exit);
 exec_builtin(progn, Forms, Env) -> eval_sequence(Forms, Env);
 exec_builtin(funcall, [F|Forms], Env) ->
   Fun = eval(F, Env),
-  Args = eval_collect(Forms, Env),
-  exec_lambda(Fun, Args);
+  eval_callable(Fun, Forms, Env);
 exec_builtin(defmacro, [Name, Args, Body], Env) ->
   case is_symbol(Name) of
     true ->

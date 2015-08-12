@@ -33,4 +33,9 @@ format_object1(F, Env) when is_function(F) ->
   io_lib:format("~p:~p/~s", [M, N, format_object1(A, Env)]);
 format_object1(I, _Env) when is_integer(I) -> integer_to_list(I);
 format_object1(F, _Env) when is_float(F) -> float_to_list(F);
+format_object1({lambda, Args, _Body, LEnv}, Env) ->
+  io_lib:format("#<function (lambda ~s) {~p}>",
+                [format_object1(Args, Env), LEnv]);
+format_object1({func, Name, _Args, _Body}, _Env) ->
+  io_lib:format("#<function ~s>", [Name]);
 format_object1(O, _Env) -> io_lib:format("#<~p>", [O]).

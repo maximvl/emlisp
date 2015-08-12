@@ -116,6 +116,7 @@
 *** TODO Add functions/lambdas environment enclosing with respect
     to both definition and call environments
 *** TODO Add possibility to 'set std symbols in local environments
+*** TODO FIX lookup for free symbols in call env and closed symbols in def env
     
 ** todo
 
