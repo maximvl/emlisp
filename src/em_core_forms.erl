@@ -50,6 +50,11 @@ is_std_symbol({symbol, S}) ->
 
 %% EVAL
 
+evalm(Ast) -> evalm(Ast, em_env:global_env()).
+evalm(Ast, Env) ->
+  {ok, Ast2} = em_code_walker:macro_expander(Ast, Env),
+  eval(Ast2, Env).
+
 -spec eval(ast()) -> res().
 eval(Ast) -> eval(Ast, em_env:global_env()).
 
@@ -113,7 +118,7 @@ eval_callable(C, Args, Env) ->
   case func_type(C) of
     lambda -> exec_lambda(C, Args, Env);
     function -> exec_named_func(C, Args, Env);
-    macro -> exec_macro(C, Args, Env);
+    %% macro -> exec_macro(C, Args, Env);
     builtin -> exec_builtin(C, Args, Env)
   end.
 
@@ -139,20 +144,6 @@ exec_func(ArgNames, ArgForms, Body, Env) ->
   em_env:env_free_frame(Env2),
   Res.
 
-%% exec_func(Func, EvaledArgs, Env) ->
-%%   ArgNames = func_args(Func),
-%%   case length(EvaledArgs) == length(ArgNames) of
-%%     true ->
-%%       Env2 = em_env:env_add_frame(Env),
-%%       em_env:env_add_many(lists:zip(ArgNames, EvaledArgs), Env2),
-%%       Body = func_body(Func),
-%%       Res = eval_sequence(Body, Env2),
-%%       em_env:env_free_frame(Env2),
-%%       Res;
-%%     false ->
-%%       error_(fun_arity_error, {Func, ArgNames, EvaledArgs}, Env)
-%%   end.
-
 expand_macro(Macro, Args) ->
   ArgNames = macro_args(Macro),
   Env = macro_env(Macro),
@@ -167,10 +158,6 @@ expand_macro(Macro, Args) ->
     false ->
       error_(macro_arity_error, {Macro, ArgNames, Args}, Env)
   end.
-
-exec_macro(Macro, Args, Env) ->
-  Expand = expand_macro(Macro, Args),
-  eval(Expand, Env).
 
 make_func(Name, Args, Exprs) -> {func, Name, Args, Exprs}.
 
@@ -188,6 +175,9 @@ make_macro(Args, Exprs, Env) -> {macro, Args, Exprs, Env}.
 macro_args({macro, Args, _, _}) -> Args.
 macro_body({macro, _, Exprs, _}) -> Exprs.
 macro_env({macro, _, _, Env}) -> Env.
+
+is_macro({macro, _, _, _}) -> true;
+is_macro(_) -> false.
 
 make_lambda(Args, Body, Env) ->
   em_env:env_keep(Env),
@@ -259,15 +249,19 @@ exec_builtin(defmacro, [Name, Args, Body], Env) ->
   case is_symbol(Name) of
     true ->
       L = make_macro(Args, [Body], Env),
-      em_env:env_set(em_env:global_env(), Name, L),
+      em_env:env_set(Name, L, em_env:global_env()),
       Name;
     false ->
       error_(cant_defmacro, Name, Env)
   end;
-exec_builtin('macroexpand-1', [[_Quote, [MacroName | Args]]], Env) ->
-  Macro = em_env:env_get(MacroName, Env),
-  Evaled = expand_macro(Macro, Args),
-  Evaled;
+exec_builtin('macroexpand-1', [Form], Env) ->
+  case eval(Form, Env) of
+    [MacroName | Args] ->
+      Macro = em_env:env_get(MacroName, Env),
+      expand_macro(Macro, Args);
+    Other ->
+      error_(cant_macroexpand, Other, Env)
+  end;
 exec_builtin(B, Args, Env) ->
   error_(undefined_builtin, {B, Args}, Env).
 

@@ -6,7 +6,7 @@ start() -> application:start(emlisp).
 stop() -> application:stop(emlisp).
 
 re(String) ->
-  em_core_forms:eval(em_grammar:parse(String)).
+  em_core_forms:evalm(em_grammar:parse(String)).
 
 repl() ->
   ok = application:ensure_started(emlisp),
@@ -15,7 +15,7 @@ repl() ->
 repl(Env) ->
   Line = io:get_line("emlisp> "),
   try
-    Res = em_core_forms:eval(em_grammar:parse(Line), Env),
+    Res = em_core_forms:evalm(em_grammar:parse(Line), Env),
     em_print:print(Res, Env)
   catch throw:{emlisp, Tag, Data} ->
       FTag = em_print:format_object(Tag, Env),
