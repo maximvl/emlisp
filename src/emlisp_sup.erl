@@ -24,4 +24,5 @@ start_link() ->
 
 init([]) ->
   Env = ?CHILD(em_env, worker),
-  {ok, { {one_for_one, 5, 10}, [Env]} }.
+  Lisp = ?CHILD(lisp_worker, worker),
+  {ok, { {one_for_one, 5, 10}, [Env, Lisp]} }.
